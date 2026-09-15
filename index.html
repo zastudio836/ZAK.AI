@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Z.A.K AI Image Generator</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configure Tailwind to use a clean, modern style -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        // --- Golden White Black Theme ---
+                        primary: '#FFBF00', // Rich Gold accent color
+                        secondary: '#374151', // Dark grey for secondary elements (keeping utility gray)
+                        background: '#0a0a0a', // Deep Black background
+                        card: '#1a1a1a', // Slightly lighter black for card backgrounds
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Apply smooth transitions and font globally */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0a0a0a; /* Updated to Deep Black */
+        }
+        /* Custom scrollbar for a cleaner look */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1a1a1a; /* Matches card color */
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #444444;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #666666;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-white p-4 sm:p-8">
+
+    <div class="max-w-4xl mx-auto">
+        <!-- Header -->
+        <header class="text-center mb-10">
+            <h1 class="text-4xl sm:text-5xl font-extrabold text-primary mb-2 tracking-tight">Z.A.K AI Image Generator</h1>
+            <p class="text-xl text-gray-400">Transform your imagination into stunning visuals.</p>
+        </header>
+
+        <!-- Main Generation Card -->
+        <div class="bg-card p-6 sm:p-8 rounded-xl shadow-2xl space-y-6">
+            <label for="promptInput" class="block text-lg font-medium text-gray-300">Enter Your Prompt</label>
+            
+            <!-- Input Area -->
+            <textarea id="promptInput" rows="4" 
+                class="w-full p-4 rounded-lg bg-[#262626] text-gray-50 border-2 border-[#262626] focus:border-primary focus:ring-primary transition duration-300 resize-none outline-none placeholder-gray-500"
+                placeholder="A futuristic cybernetic tiger wearing sunglasses, hyper-detailed, 8K, neon lighting."></textarea>
+            
+            <!-- Generate Button and Status -->
+            <div class="flex flex-col sm:flex-row items-center justify-between space-y-4 sm:space-y-0 sm:space-x-4">
+                <button id="generateButton" onclick="handleImageGeneration()"
+                    class="w-full sm:w-auto px-6 py-3 text-lg font-semibold rounded-full bg-primary hover:bg-[#FFD700] transition duration-300 transform hover:scale-[1.02] shadow-lg shadow-primary/50 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled>
+                    <span id="buttonText">Generate Image</span>
+                    <svg id="spinner" class="animate-spin -ml-1 mr-3 h-5 w-5 text-black hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </button>
+
+                <button id="copyPromptButton" onclick="copyPrompt()"
+                    class="w-full sm:w-auto px-4 py-2 text-sm font-medium rounded-full bg-[#262626] text-gray-200 hover:bg-gray-700 transition duration-300 hidden disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled>
+                    Copy Prompt
+                </button>
+            </div>
+            
+            <!-- Error and Status Message Box -->
+            <div id="statusMessage" class="hidden p-4 rounded-lg text-sm transition-opacity duration-500"></div>
+
+        </div>
+
+        <!-- Image Output Area -->
+        <div class="mt-10">
+            <h2 class="text-3xl font-bold text-gray-200 mb-6 text-center">Your Generated Image</h2>
+            
+            <div id="imageContainer" class="relative bg-card p-2 rounded-xl shadow-inner border border-[#333333] min-h-[300px] flex items-center justify-center overflow-hidden">
+                <img id="generatedImage" src="" alt="Generated AI Image" class="hidden w-full h-auto max-h-[600px] object-contain rounded-lg shadow-lg">
+                
+                <p id="initialMessage" class="text-gray-500 text-center p-10 transition-opacity">
+                    The resulting image will appear here. Start by typing your creative prompt above!
+                </p>
+            </div>
+            
+            <!-- Image Download Button -->
+            <div class="text-center mt-6">
+                <a id="downloadLink" href="#" download="zak-ai-image.png"
+                    class="inline-flex items-center px-6 py-3 text-lg font-semibold rounded-full bg-[#262626] text-gray-200 hover:bg-gray-700 transition duration-300 hidden"
+                    aria-label="Download the generated image">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    Download Image
+                </a>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const IMAGE_MODEL_ID = 'imagen-4.0-generate-001';
+        const API_BASE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${IMAGE_MODEL_ID}:predict`;
+        const apiKey = ""; // Canvas will provide this key at runtime
+
+        // --- DOM Elements ---
+        const promptInput = document.getElementById('promptInput');
+        const generateButton = document.getElementById('generateButton');
+        const buttonText = document.getElementById('buttonText');
+        const spinner = document.getElementById('spinner');
+        const statusMessage = document.getElementById('statusMessage');
+        const generatedImage = document.getElementById('generatedImage');
+        const initialMessage = document.getElementById('initialMessage');
+        const downloadLink = document.getElementById('downloadLink');
+        const copyPromptButton = document.getElementById('copyPromptButton');
+
+        // --- Utility Functions ---
+
+        /**
+         * Sets the loading state of the application UI.
+         * @param {boolean} isLoading - True to enable loading state, false otherwise.
+         */
+        function setLoading(isLoading) {
+            promptInput.disabled = isLoading;
+            generateButton.disabled = isLoading || promptInput.value.trim() === '';
+            copyPromptButton.disabled = isLoading;
+            
+            if (isLoading) {
+                buttonText.textContent = 'Generating...';
+                spinner.classList.remove('hidden');
+                // Change spinner color to black/dark for contrast on the gold button
+                spinner.classList.add('text-black');
+                spinner.classList.remove('text-white');
+                
+                initialMessage.classList.add('hidden');
+                generatedImage.classList.add('hidden');
+                downloadLink.classList.add('hidden');
+                statusMessage.classList.add('hidden');
+                statusMessage.textContent = '';
+                
+                // Show a temporary message in the container
+                document.getElementById('imageContainer').innerHTML = `
+                    <div class="flex flex-col items-center justify-center p-10 text-gray-400">
+                        <svg class="animate-pulse w-10 h-10 mb-3 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-2-2l2 2m-2-2V6h-4m-6 0H6v4m-2 2h4m-4 0a8 8 0 1116 0A8 8 0 014 12z"></path>
+                        </svg>
+                        <p class="font-semibold text-lg">Synthesizing image...</p>
+                        <p class="text-sm">This may take up to 30 seconds.</p>
+                    </div>
+                `;
+            } else {
+                buttonText.textContent = 'Generate Image';
+                spinner.classList.add('hidden');
+            }
+        }
+
+        /**
+         * Displays a status/error message box.
+         * @param {string} message - The message to display.
+         * @param {string} type - 'error' or 'success'.
+         */
+        function showMessage(message, type) {
+            statusMessage.textContent = message;
+            statusMessage.classList.remove('hidden', 'bg-red-900/40', 'text-red-300', 'bg-green-900/40', 'text-green-300');
+
+            // Keeping the dark red/green status colors for better accessibility on the black background
+            if (type === 'error') {
+                statusMessage.classList.add('bg-red-900/40', 'text-red-300');
+            } else if (type === 'success') {
+                statusMessage.classList.add('bg-green-900/40', 'text-green-300');
+            }
+        }
+        
+        /**
+         * Performs a fetch request with exponential backoff for retries.
+         * @param {string} url - API URL.
+         * @param {object} options - Fetch options (method, headers, body).
+         * @param {number} maxRetries - Maximum number of retries.
+         * @returns {Promise<Response>}
+         */
+        async function fetchWithBackoff(url, options, maxRetries = 5) {
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (response.status !== 429) {
+                        return response;
+                    }
+                    // Handle 429 (Too Many Requests) by retrying with exponential backoff
+                } catch (error) {
+                    // Handle network errors by retrying
+                }
+
+                if (i < maxRetries - 1) {
+                    const delay = Math.pow(2, i) * 1000 + Math.random() * 1000; // 1s, 2s, 4s, 8s, 16s + jitter
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+            throw new Error("API request failed after multiple retries.");
+        }
+
+        /**
+         * Copies the current prompt to the clipboard.
+         */
+        function copyPrompt() {
+            const prompt = promptInput.value.trim();
+            if (prompt) {
+                // Use document.execCommand('copy') for better compatibility in iFrames
+                const tempInput = document.createElement('textarea');
+                tempInput.value = prompt;
+                document.body.appendChild(tempInput);
+                tempInput.select();
+                try {
+                    document.execCommand('copy');
+                    showMessage("Prompt copied to clipboard!", 'success');
+                } catch (err) {
+                    showMessage("Failed to copy prompt.", 'error');
+                }
+                document.body.removeChild(tempInput);
+            }
+        }
+
+        // --- Event Listeners ---
+        promptInput.addEventListener('input', () => {
+            // Enable button only if prompt is not empty
+            generateButton.disabled = promptInput.value.trim() === '';
+            copyPromptButton.classList.toggle('hidden', promptInput.value.trim() === '');
+        });
+
+        // --- Main Logic ---
+
+        /**
+         * Handles the entire image generation process.
+         */
+        async function handleImageGeneration() {
+            const userPrompt = promptInput.value.trim();
+            if (!userPrompt) {
+                showMessage("Please enter a prompt to generate an image.", 'error');
+                return;
+            }
+
+            setLoading(true);
+
+            try {
+                const payload = {
+                    instances: [{ prompt: userPrompt }],
+                    parameters: { 
+                        "sampleCount": 1, // Request a single image
+                        "outputMimeType": "image/png"
+                    }
+                };
+                
+                const options = {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                };
+
+                const response = await fetchWithBackoff(API_BASE_URL, options);
+                const result = await response.json();
+
+                if (!response.ok) {
+                    const errorMessage = result.error?.message || `API Error: ${response.status} ${response.statusText}`;
+                    throw new Error(errorMessage);
+                }
+
+                // Check for predictions array and base64 data
+                const base64Data = result.predictions?.[0]?.bytesBase64Encoded;
+
+                if (base64Data) {
+                    const imageUrl = `data:image/png;base64,${base64Data}`;
+                    
+                    // Restore the image container structure
+                    document.getElementById('imageContainer').innerHTML = '';
+                    document.getElementById('imageContainer').appendChild(generatedImage);
+
+                    generatedImage.src = imageUrl;
+                    generatedImage.classList.remove('hidden');
+                    initialMessage.classList.add('hidden');
+
+                    // Set up the download link
+                    downloadLink.href = imageUrl;
+                    downloadLink.classList.remove('hidden');
+                    
+                    showMessage("Image generated successfully!", 'success');
+                } else {
+                    throw new Error("Image data not found in the API response.");
+                }
+
+            } catch (error) {
+                console.error("Image generation failed:", error);
+                // Restore the initial message structure on error
+                document.getElementById('imageContainer').innerHTML = '';
+                document.getElementById('imageContainer').appendChild(generatedImage);
+                document.getElementById('imageContainer').appendChild(initialMessage);
+                initialMessage.classList.remove('hidden');
+                
+                showMessage(`Generation failed: ${error.message || 'An unknown error occurred.'}`, 'error');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // Initialize UI state
+        window.onload = () => {
+            promptInput.dispatchEvent(new Event('input')); // Check initial state of button
+        };
+    </script>
+</body>
+</html>
